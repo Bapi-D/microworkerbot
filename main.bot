@@ -1,0 +1,46 @@
+import requests
+import time
+import threading
+from flask import Flask
+import os
+
+# --- 1. WEB SERVER TO PREVENT SLEEPING ---
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "Microworkers Bot is Online 24/7!"
+
+def run_flask():
+    # Koyeb provides the PORT automatically
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# --- 2. THE MONITORING SYSTEM ---
+TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+CHAT_ID = "YOUR_CHAT_ID"
+COOKIE = "PHPSESSID=your_actual_cookie_here"
+
+def send_alert(text):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={CHAT_ID}&text={text}"
+    try: requests.get(url)
+    except: print("Alert failed")
+
+def monitor():
+    last_job = ""
+    print("Monitor started...")
+    while True:
+        try:
+            headers = {"Cookie": COOKIE, "User-Agent": "Mozilla/5.0"}
+            r = requests.get("https://www.microworkers.com/jobs.php", headers=headers, timeout=15)
+            if "Job ID:" in r.text:
+                current_job = r.text.split("Job ID:")[1][:15].strip().split()[0]
+                if current_job != last_job:
+                    send_alert(f"🚀 New Job Detected! ID: {current_job}")
+                    last_job = current_job
+        except Exception as e:
+            print(f"Check failed: {e}")
+        time.sleep(60) # Checks every 60 seconds
+
+if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()
+    monitor()
