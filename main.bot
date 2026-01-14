@@ -16,9 +16,9 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 # --- 2. THE MONITORING SYSTEM ---
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"
-COOKIE = "PHPSESSID=your_actual_cookie_here"
+TOKEN = "8294342276:AAG9JabIfGmJLRNNrjzbN3efaQOKa09tGbI"
+CHAT_ID = "-1003486051893"
+COOKIE = "PHPSESSID=lvpc839hmvcl1hf245nnnpb7b0"
 
 def send_alert(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={CHAT_ID}&text={text}"
