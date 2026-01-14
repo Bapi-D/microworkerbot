@@ -52,7 +52,7 @@ def monitor():
         except Exception as e:
             print(f"Check failed: {e}")
             
-        time.sleep(60) # Wait 1 minute
+        time.sleep(2) # Wait 2 seconds
 
 if __name__ == "__main__":
     # Start the "I am alive" web server in a separate thread
