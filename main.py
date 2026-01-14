@@ -33,7 +33,7 @@ def send_alert(text):
 
 def monitor():
     last_job = ""
-    print("Monitor started... Checking Microworkers every 60 seconds.")
+    print("Monitor started... Checking Microworkers every 2 seconds.")
     while True:
         try:
             headers = {
