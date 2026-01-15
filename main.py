@@ -20,7 +20,7 @@ def scrape_jobs():
     scraper.cookies.set("PHPSESSID", COOKIE_VAL, domain="www.microworkers.com")
     
     last_seen_jobs = set()
-    print("Smarter Link-Scraper Started...")
+    print("Smarter 2026 Link-Scraper Started...")
 
     while True:
         try:
@@ -30,40 +30,43 @@ def scrape_jobs():
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # We find the links FIRST
-                job_links = soup.find_all('a', href=lambda x: x and '/jobs/apply/' in x)
+                # 2026 UPDATE: Try 3 different ways to find job links
+                # 1. Search for new 'job_title' class
+                # 2. Search for the 'dot' links inside the job table
+                # 3. Search for any href containing 'jobs/apply'
+                links = soup.select('a.job_title') or \
+                        soup.select('td a[href*="/jobs/apply/"]') or \
+                        soup.find_all('a', href=lambda x: x and '/jobs/apply/' in x)
                 
-                # Now we print the status
-                print(f"I see {len(response.text)} characters. Found {len(job_links)} jobs.")
-                
-                if not job_links:
-                    print("No job links found. Your cookie might be expired.")
+                print(f"Page loaded: {len(response.text)} chars. Found {len(links)} jobs.")
 
-                for link in job_links:
-                    href = link['href']
-                    job_id = href.split('/')[-1]
+                for link in links:
+                    href = link.get('href', '')
+                    job_id = href.split('/')[-1].split('?')[0] # Clean ID
                     job_name = link.get_text(strip=True) or "Micro Task"
                     
-                    # CHANGE "PASTE_OLD_ID_HERE" to an actual ID if you want to test
-                    if job_id not in last_seen_jobs:
-                        msg = f"🔔 **NEW TASK DETECTED**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Apply on MW]({url})"
+                    if job_id and job_id not in last_seen_jobs:
+                        msg = f"🔔 **NEW TASK**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Open Jobs Page]({url})"
                         
                         # Send to Telegram
                         scraper.get(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
                                     params={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
                         
                         last_seen_jobs.add(job_id)
-                        print(f"Alert sent for Job: {job_id}")
+                        print(f"Alert sent: {job_id}")
 
-            # Safety: Keep set size small
+                if not links:
+                    print("Detection Failed. I see the page but can't find the 'Apply' links.")
+
+            else:
+                print(f"Site Error: {response.status_code}")
+
             if len(last_seen_jobs) > 500: last_seen_jobs.clear()
-            
-            # FIXED: Wait between 3 to 5 minutes (180 to 300 seconds)
-            time.sleep(random.randint(5, 10))
+            time.sleep(random.randint(10, 70))
 
         except Exception as e:
             print(f"Scrape Error: {e}")
-            time.sleep(60) # Wait 1 minute before retrying on error
+            time.sleep(60)
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
