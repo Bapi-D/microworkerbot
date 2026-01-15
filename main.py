@@ -16,11 +16,12 @@ CHAT_ID = "-1003486051893"
 COOKIE_VAL = os.environ.get("MY_COOKIE", "default")
 
 def scrape_jobs():
+    # Use a real-looking browser header
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome','platform': 'windows','desktop': True})
     scraper.cookies.set("PHPSESSID", COOKIE_VAL, domain="www.microworkers.com")
     
     last_seen_jobs = set()
-    print("Smarter 2026 Link-Scraper Started...")
+    print("Deep-Scan 2026 Logic Started...")
 
     while True:
         try:
@@ -30,44 +31,46 @@ def scrape_jobs():
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # 2026 UPDATE: Try 3 different ways to find job links
-                # 1. Search for new 'job_title' class
-                # 2. Search for the 'dot' links inside the job table
-                # 3. Search for any href containing 'jobs/apply'
-                links = soup.select('a.job_title') or \
-                        soup.select('td a[href*="/jobs/apply/"]') or \
-                        soup.find_all('a', href=lambda x: x and '/jobs/apply/' in x)
+                # SEARCH #1: Look for the specific 'jobs/apply' links in all forms
+                found_links = []
+                all_links = soup.find_all('a', href=True)
                 
-                print(f"Page loaded: {len(response.text)} chars. Found {len(links)} jobs.")
+                for l in all_links:
+                    href = l['href']
+                    # Look for the job pattern like 'jobs/apply/12345' or '?id=12345'
+                    if '/jobs/apply/' in href or 'apply.php?id=' in href:
+                        found_links.append(l)
 
-                for link in links:
-                    href = link.get('href', '')
-                    job_id = href.split('/')[-1].split('?')[0] # Clean ID
-                    job_name = link.get_text(strip=True) or "Micro Task"
+                print(f"Status: Page Loaded. {len(all_links)} total links on page. Found {len(found_links)} potential jobs.")
+
+                for link in found_links:
+                    href = link['href']
+                    # Clean the ID from the URL (removes extra text)
+                    job_id = href.split('/')[-1].split('?')[0].replace('apply.phpid=', '')
+                    job_name = link.get_text(strip=True) or "New Micro Task"
                     
                     if job_id and job_id not in last_seen_jobs:
-                        msg = f"🔔 **NEW TASK**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Open Jobs Page]({url})"
+                        msg = f"🚀 **NEW JOB ALERT**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Apply Here]({url})"
                         
-                        # Send to Telegram
+                        # Send alert
                         scraper.get(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
                                     params={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
                         
                         last_seen_jobs.add(job_id)
-                        print(f"Alert sent: {job_id}")
+                        print(f"Sent Alert for: {job_id}")
 
-                if not links:
-                    print("Detection Failed. I see the page but can't find the 'Apply' links.")
+                if not found_links:
+                    print("Debug: No jobs found. They might be in a 'Hire Group' or hidden by a script.")
 
             else:
-                print(f"Site Error: {response.status_code}")
+                print(f"Login failed? Status code: {response.status_code}")
 
-            if len(last_seen_jobs) > 500: last_seen_jobs.clear()
+            # Stay safe: check every 3-5 mins
             time.sleep(random.randint(10, 70))
 
         except Exception as e:
-            print(f"Scrape Error: {e}")
+            print(f"Bot Error: {e}")
             time.sleep(60)
-
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
     scrape_jobs()
