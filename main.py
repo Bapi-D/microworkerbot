@@ -16,61 +16,67 @@ CHAT_ID = "-1003486051893"
 COOKIE_VAL = os.environ.get("MY_COOKIE", "default")
 
 def scrape_jobs():
-    # Use a real-looking browser header
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome','platform': 'windows','desktop': True})
+    # 2026 Stealth Config: Mimic a modern Windows Chrome browser perfectly
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True
+        }
+    )
+    
+    # Crucial: Apply the cookie to the scraper session
     scraper.cookies.set("PHPSESSID", COOKIE_VAL, domain="www.microworkers.com")
     
     last_seen_jobs = set()
-    print("Deep-Scan 2026 Logic Started...")
+    print("Anti-Cloudflare Deep Scan Started...")
 
     while True:
         try:
-            url = "https://www.microworkers.com/jobs.php"
-            response = scraper.get(url, timeout=30)
+            # We add a common 'Referer' header so it looks like we clicked a link
+            headers = {
+                'Referer': 'https://www.google.com/',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
             
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
+            url = "https://www.microworkers.com/jobs.php"
+            response = scraper.get(url, headers=headers, timeout=30)
+            
+            # DEBUG: If the size is small, we know we are blocked
+            char_count = len(response.text)
+            
+            if char_count < 15000:
+                print(f"⚠️ Blocked by Cloudflare (Size: {char_count}). Trying to recover...")
+                # Small trick: visit the home page first to get a clearance cookie
+                scraper.get("https://www.microworkers.com/")
+                time.sleep(10)
+                continue 
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Look for ANY link that has 'apply' in it
+            job_links = soup.find_all('a', href=lambda x: x and ('jobs/apply' in x or 'apply.php' in x))
+            
+            print(f"✅ Success! Page Size: {char_count}. Found {len(job_links)} jobs.")
+
+            for link in job_links:
+                href = link['href']
+                job_id = href.split('/')[-1].split('?')[-1].replace('id=', '')
+                job_name = link.get_text(strip=True) or "Micro Task"
                 
-                # SEARCH #1: Look for the specific 'jobs/apply' links in all forms
-                found_links = []
-                all_links = soup.find_all('a', href=True)
-                
-                for l in all_links:
-                    href = l['href']
-                    # Look for the job pattern like 'jobs/apply/12345' or '?id=12345'
-                    if '/jobs/apply/' in href or 'apply.php?id=' in href:
-                        found_links.append(l)
+                if job_id not in last_seen_jobs:
+                    msg = f"🚀 **NEW JOB**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Apply]({url})"
+                    scraper.get(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                                params={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+                    last_seen_jobs.add(job_id)
 
-                print(f"Status: Page Loaded. {len(all_links)} total links on page. Found {len(found_links)} potential jobs.")
-
-                for link in found_links:
-                    href = link['href']
-                    # Clean the ID from the URL (removes extra text)
-                    job_id = href.split('/')[-1].split('?')[0].replace('apply.phpid=', '')
-                    job_name = link.get_text(strip=True) or "New Micro Task"
-                    
-                    if job_id and job_id not in last_seen_jobs:
-                        msg = f"🚀 **NEW JOB ALERT**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Apply Here]({url})"
-                        
-                        # Send alert
-                        scraper.get(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                                    params={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
-                        
-                        last_seen_jobs.add(job_id)
-                        print(f"Sent Alert for: {job_id}")
-
-                if not found_links:
-                    print("Debug: No jobs found. They might be in a 'Hire Group' or hidden by a script.")
-
-            else:
-                print(f"Login failed? Status code: {response.status_code}")
-
-            # Stay safe: check every 3-5 mins
+            if len(last_seen_jobs) > 500: last_seen_jobs.clear()
+            
+            # Wait 4-7 minutes to avoid "bot-like" patterns
             time.sleep(random.randint(10, 70))
 
         except Exception as e:
-            print(f"Bot Error: {e}")
-            time.sleep(60)
+            print(f"Scrape Error: {e}")
+            time.sleep(120)
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
     scrape_jobs()
