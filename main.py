@@ -26,25 +26,26 @@ def scrape_jobs():
         try:
             url = "https://www.microworkers.com/jobs.php"
             response = scraper.get(url, timeout=30)
-            print(f"I see {len(response.text)} characters of code. {len(job_links)} jobs found.")
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # SMARTER SEARCH: Find all links that contain 'jobs/apply'
-                # This is the standard URL pattern for Microworkers tasks
+                # We find the links FIRST
                 job_links = soup.find_all('a', href=lambda x: x and '/jobs/apply/' in x)
                 
+                # Now we print the status
+                print(f"I see {len(response.text)} characters. Found {len(job_links)} jobs.")
+                
                 if not job_links:
-                    print("No job links found. Check if cookie is still valid.")
+                    print("No job links found. Your cookie might be expired.")
 
                 for link in job_links:
-                    # Extract the ID from the URL: /jobs/apply/XXXXXX
                     href = link['href']
                     job_id = href.split('/')[-1]
                     job_name = link.get_text(strip=True) or "Micro Task"
                     
-                    if job_id == "PASTE_OLD_ID_HERE":
+                    # CHANGE "PASTE_OLD_ID_HERE" to an actual ID if you want to test
+                    if job_id not in last_seen_jobs:
                         msg = f"🔔 **NEW TASK DETECTED**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Apply on MW]({url})"
                         
                         # Send to Telegram
@@ -55,14 +56,14 @@ def scrape_jobs():
                         print(f"Alert sent for Job: {job_id}")
 
             # Safety: Keep set size small
-            if len(last_seen_jobs) > 100: last_seen_jobs.clear()
+            if len(last_seen_jobs) > 500: last_seen_jobs.clear()
             
-            # Wait 3-5 minutes
-            time.sleep(random.randint(5, 20, 60))
+            # FIXED: Wait between 3 to 5 minutes (180 to 300 seconds)
+            time.sleep(random.randint(5, 10))
 
         except Exception as e:
             print(f"Scrape Error: {e}")
-            time.sleep(600)
+            time.sleep(60) # Wait 1 minute before retrying on error
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
