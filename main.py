@@ -1,75 +1,76 @@
-import requests
+import cloudscraper
 import time
+import random
+import os
 import threading
 from flask import Flask
-import os
-import random
+from bs4 import BeautifulSoup
 
-# --- 1. WEB SERVER FOR KOYEB HEALTH CHECKS ---
+# --- 1. KOYEB HEALTH CHECK ---
 app = Flask(__name__)
-
 @app.route('/')
-def home():
-    return "Microworkers Bot is Online & Running Safely!", 200
+def home(): return "Pro Scraper is Active", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port)
 
-# --- 2. THE MONITORING SYSTEM ---
+# --- 2. THE CLOUDFLARE BYPASS SCRAPER ---
 TOKEN = "8294342276:AAG9JabIfGmJLRNNrjzbN3efaQOKa09tGbI"
 CHAT_ID = "-1003486051893"
-COOKIE = "PHPSESSID=lvpc839hmvcl1hf245nnnpb7b0"
+COOKIE_VAL = "4q0kejkv3nsgen87e1uolh2h9l"
 
-# List of different browser identities to mimic different devices
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1"
-]
+def scrape_jobs():
+    # Create a scraper instance that bypasses Cloudflare
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True
+        }
+    )
+    
+    # Manually set your cookie so you stay logged in
+    scraper.cookies.set("PHPSESSID", COOKIE_VAL, domain="www.microworkers.com")
+    
+    last_seen_jobs = set()
+    print("Locked in and Cloudflare-ready. Starting scraper...")
 
-def send_alert(text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    params = {"chat_id": CHAT_ID, "text": text}
-    try:
-        requests.get(url, params=params)
-    except Exception as e:
-        print(f"Telegram alert failed: {e}")
-
-def monitor():
-    last_job = ""
-    print("Safe Monitor started... Randomized checking enabled.")
     while True:
         try:
-            # Pick a random browser identity for each request
-            headers = {
-                "Cookie": COOKIE, 
-                "User-Agent": random.choice(USER_AGENTS),
-                "Accept-Language": "en-US,en;q=0.9"
-            }
+            # Scrape the Job Area
+            url = "https://www.microworkers.com/jobs.php"
+            response = scraper.get(url, timeout=20)
             
-            r = requests.get("https://www.microworkers.com/jobs.php", headers=headers, timeout=20)
-            
-            if "Job ID:" in r.text:
-                current_job = r.text.split("Job ID:")[1][:15].strip().split()[0]
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                # Find all jobs in the list (MW usually uses 'job_item' classes)
+                job_items = soup.select('.job_item') 
                 
-                if current_job != last_job:
-                    send_alert(f"🚀 New Job! ID: {current_job}\nhttps://www.microworkers.com/jobs.php")
-                    last_job = current_job
-            
-            # 🛑 THE SAFETY FIX: 
-            # Instead of exactly 30s, we wait between 90 and 180 seconds (1.5 to 3 minutes).
-            # This variation prevents the "5-minute restriction."
-            wait_time = random.randint(90, 180)
-            print(f"Checked successfully. Next check in {wait_time} seconds...")
-            time.sleep(wait_time)
+                for job in job_items:
+                    job_id = job.get('id')
+                    # Find the text of the job title
+                    title_elem = job.select_one('.job_title')
+                    if title_elem and job_id not in last_seen_jobs:
+                        title_text = title_elem.get_text(strip=True)
+                        msg = f"🔔 **NEW JOB DETECTED**\n\n📌 {title_text}\n🆔 {job_id}\n🔗 [Open Job]({url})"
+                        
+                        # Send alert via Telegram
+                        requests.get(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                                     params={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+                        
+                        last_seen_jobs.add(job_id)
+
+            # Prevent memory overflow: only keep 100 most recent IDs
+            if len(last_seen_jobs) > 100: last_seen_jobs.clear()
+
+            # IMPORTANT: Wait randomly to look human
+            time.sleep(random.randint(50, 200)) # 3 to 5 minutes
 
         except Exception as e:
-            print(f"Check failed: {e}")
-            # If the site blocks us or fails, wait 5 minutes before trying again
-            time.sleep(300) 
+            print(f"Bypass Error: {e}")
+            time.sleep(600) # Wait 10 minutes if blocked
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
-    monitor()
+    scrape_jobs()
