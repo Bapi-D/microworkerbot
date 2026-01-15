@@ -26,6 +26,7 @@ def scrape_jobs():
         try:
             url = "https://www.microworkers.com/jobs.php"
             response = scraper.get(url, timeout=30)
+            print(f"I see {len(response.text)} characters of code. {len(job_links)} jobs found.")
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -43,7 +44,7 @@ def scrape_jobs():
                     job_id = href.split('/')[-1]
                     job_name = link.get_text(strip=True) or "Micro Task"
                     
-                    if job_id not in last_seen_jobs:
+                    if job_id == "PASTE_OLD_ID_HERE":
                         msg = f"🔔 **NEW TASK DETECTED**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Apply on MW]({url})"
                         
                         # Send to Telegram
@@ -57,7 +58,7 @@ def scrape_jobs():
             if len(last_seen_jobs) > 100: last_seen_jobs.clear()
             
             # Wait 3-5 minutes
-            time.sleep(random.randint(40, 200))
+            time.sleep(random.randint(5, 20, 60))
 
         except Exception as e:
             print(f"Scrape Error: {e}")
