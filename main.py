@@ -1,75 +1,67 @@
-import cloudscraper
-import time
-import random
-import os
-import threading
+import cloudscraper, time, random, os, threading
 from flask import Flask
 from bs4 import BeautifulSoup
 
-# --- 1. KOYEB HEALTH CHECK ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Pro Scraper is Active", 200
+def home(): 
+    return "Bot is Active. Searching for any job links...", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port)
 
-# --- 2. THE CLOUDFLARE BYPASS SCRAPER ---
 TOKEN = "8294342276:AAG9JabIfGmJLRNNrjzbN3efaQOKa09tGbI"
 CHAT_ID = "-1003486051893"
-COOKIE_VAL = "4q0kejkv3nsgen87e1uolh2h9l"
+COOKIE_VAL = os.environ.get("MY_COOKIE", "default")
 
 def scrape_jobs():
-    # Create a scraper instance that bypasses Cloudflare
-    scraper = cloudscraper.create_scraper(
-        browser={
-            'browser': 'chrome',
-            'platform': 'windows',
-            'desktop': True
-        }
-    )
-    
-    # Manually set your cookie so you stay logged in
+    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome','platform': 'windows','desktop': True})
     scraper.cookies.set("PHPSESSID", COOKIE_VAL, domain="www.microworkers.com")
     
     last_seen_jobs = set()
-    print("Locked in and Cloudflare-ready. Starting scraper...")
+    print("Smarter Link-Scraper Started...")
 
     while True:
         try:
-            # Scrape the Job Area
             url = "https://www.microworkers.com/jobs.php"
-            response = scraper.get(url, timeout=20)
+            response = scraper.get(url, timeout=30)
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
-                # Find all jobs in the list (MW usually uses 'job_item' classes)
-                job_items = soup.select('.job_item') 
                 
-                for job in job_items:
-                    job_id = job.get('id')
-                    # Find the text of the job title
-                    title_elem = job.select_one('.job_title')
-                    if title_elem and job_id not in last_seen_jobs:
-                        title_text = title_elem.get_text(strip=True)
-                        msg = f"🔔 **NEW JOB DETECTED**\n\n📌 {title_text}\n🆔 {job_id}\n🔗 [Open Job]({url})"
+                # SMARTER SEARCH: Find all links that contain 'jobs/apply'
+                # This is the standard URL pattern for Microworkers tasks
+                job_links = soup.find_all('a', href=lambda x: x and '/jobs/apply/' in x)
+                
+                if not job_links:
+                    print("No job links found. Check if cookie is still valid.")
+
+                for link in job_links:
+                    # Extract the ID from the URL: /jobs/apply/XXXXXX
+                    href = link['href']
+                    job_id = href.split('/')[-1]
+                    job_name = link.get_text(strip=True) or "Micro Task"
+                    
+                    if job_id not in last_seen_jobs:
+                        msg = f"🔔 **NEW TASK DETECTED**\n\n📝 {job_name}\n🆔 ID: {job_id}\n🔗 [Apply on MW]({url})"
                         
-                        # Send alert via Telegram
-                        requests.get(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                                     params={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+                        # Send to Telegram
+                        scraper.get(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                                    params={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
                         
                         last_seen_jobs.add(job_id)
+                        print(f"Alert sent for Job: {job_id}")
 
-            # Prevent memory overflow: only keep 100 most recent IDs
+            # Safety: Keep set size small
             if len(last_seen_jobs) > 100: last_seen_jobs.clear()
-
-            # IMPORTANT: Wait randomly to look human
-            time.sleep(random.randint(50, 200)) # 3 to 5 minutes
+            
+            # Wait 3-5 minutes
+            time.sleep(random.randint(40, 200))
 
         except Exception as e:
-            print(f"Bypass Error: {e}")
-            time.sleep(600) # Wait 10 minutes if blocked
+            print(f"Scrape Error: {e}")
+            time.sleep(600)
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
